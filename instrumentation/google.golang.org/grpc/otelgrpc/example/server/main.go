@@ -20,13 +20,20 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/example/api"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/example/config"
+	"go.opentelemetry.io/otel"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 )
 
@@ -108,8 +115,59 @@ func (s *server) SayHelloBidiStream(stream api.HelloService_SayHelloBidiStreamSe
 	return nil
 }
 
+var (
+	serviceName  = os.Getenv("SERVICE_NAME")
+	collectorURL = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	insecure     = os.Getenv("INSECURE_MODE")
+)
+
+func initTracer() *sdktrace.TracerProvider {
+
+	ctx := context.Background()
+	otlpOptions := []otlptracegrpc.Option{
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithEndpoint(collectorURL),
+		otlptracegrpc.WithDialOption(grpc.WithBlock()),
+	}
+
+	client := otlptracegrpc.NewClient(otlpOptions...)
+
+	otlpTraceExporter, err := otlptrace.New(ctx, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	batchSpanProcessor := trace.NewBatchSpanProcessor(otlpTraceExporter)
+
+	resources, err := resource.New(
+		context.Background(),
+		resource.WithAttributes(
+			attribute.String("service.name", serviceName),
+			attribute.String("library.language", "go"),
+		),
+	)
+	if err != nil {
+		log.Printf("Could not set resources: ", err)
+	}
+
+	tracerProvider := trace.NewTracerProvider(
+		trace.WithSpanProcessor(batchSpanProcessor),
+		trace.WithSampler(trace.AlwaysSample()),
+		trace.WithResource(resources),
+		trace.WithSyncer(otlpTraceExporter),
+	)
+
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{}, propagation.Baggage{}))
+
+	return tracerProvider
+}
+
 func main() {
-	tp := config.Init()
+	tp := initTracer()
+
+	// tp := config.Init()
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
 			log.Printf("Error shutting down tracer provider: %v", err)
