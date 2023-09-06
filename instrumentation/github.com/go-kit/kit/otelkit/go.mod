@@ -3,7 +3,7 @@ module go.opentelemetry.io/contrib/instrumentation/github.com/go-kit/kit/otelkit
 go 1.16
 
 require (
-	github.com/go-kit/kit v0.12.0
+	github.com/go-kit/kit v0.13.0
 	go.opentelemetry.io/otel v1.3.0
 	go.opentelemetry.io/otel/trace v1.3.0
 )
