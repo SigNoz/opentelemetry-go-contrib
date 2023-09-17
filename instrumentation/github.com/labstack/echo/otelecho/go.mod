@@ -9,8 +9,8 @@ replace (
 
 require (
 	github.com/labstack/echo/v4 v4.6.3
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.4
 	go.opentelemetry.io/contrib/propagators/b3 v1.2.0
-	go.opentelemetry.io/otel v1.3.0
-	go.opentelemetry.io/otel/trace v1.3.0
+	go.opentelemetry.io/otel v1.18.0
+	go.opentelemetry.io/otel/trace v1.18.0
 )
